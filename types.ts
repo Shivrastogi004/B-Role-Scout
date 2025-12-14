@@ -66,12 +66,14 @@ export interface BrollSearchResult {
   directLinks?: DirectLink[];
   generatedPreviewUrl?: string;
   generatedVideoUrl?: string;
+  variations?: string[]; 
   isGeneratingPreview?: boolean;
   vibe?: VibeMetadata;
   techSpecs?: TechSpecs;
   lightingDiagram?: LightNode[];
   cameraSettings?: CameraSettings;
   audio?: AudioSpecs;
+  currentFocalLength?: string; // e.g. "35mm"
 }
 
 export interface ScriptSegment {

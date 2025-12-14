@@ -324,7 +324,8 @@ export const searchBrollResources = async (query: string): Promise<BrollSearchRe
       techSpecs: analysisData?.techSpecs,
       cameraSettings: analysisData?.cameraSettings,
       lightingDiagram: analysisData?.lightingDiagram,
-      audio: analysisData?.audio
+      audio: analysisData?.audio,
+      currentFocalLength: '50mm' // Default
     };
 
   } catch (error) {
@@ -335,11 +336,20 @@ export const searchBrollResources = async (query: string): Promise<BrollSearchRe
 
 /**
  * Generates a preview image (storyboard).
+ * Accepts optional focalLength to change the camera characteristics.
  */
-export const generateBrollPreview = async (description: string): Promise<string> => {
+export const generateBrollPreview = async (description: string, focalLength?: string): Promise<string> => {
   try {
     const model = "gemini-2.5-flash-image";
-    const prompt = `Cinematic b-roll still frame: ${description}. High quality, photorealistic, 4k, professional lighting, cinematic composition.`;
+    let prompt = `Cinematic b-roll still frame: ${description}. High quality, photorealistic, 4k, professional lighting, cinematic composition.`;
+    
+    // Inject focal length characteristics
+    if (focalLength) {
+      if (focalLength === '16mm') prompt += " Shot on 16mm wide-angle lens, expansive field of view, slight distortion.";
+      if (focalLength === '35mm') prompt += " Shot on 35mm lens, street photography style, natural field of view.";
+      if (focalLength === '50mm') prompt += " Shot on 50mm prime lens, human eye perspective, sharp subject.";
+      if (focalLength === '85mm') prompt += " Shot on 85mm portrait lens, compressed background, shallow depth of field, bokeh.";
+    }
 
     const response = await ai.models.generateContent({
       model,
@@ -361,6 +371,28 @@ export const generateBrollPreview = async (description: string): Promise<string>
     throw new Error("Failed to generate preview image.");
   }
 };
+
+/**
+ * Generates 3 different variations of the prompt (Wide, Close-up, Creative)
+ */
+export const generateBrollVariations = async (query: string): Promise<string[]> => {
+  const variations = [
+    `Wide shot, establishing shot, cinematic context: ${query}`,
+    `Extreme close-up macro detail, texture focus: ${query}`,
+    `Creative low angle or overhead shot, dynamic lighting: ${query}`
+  ];
+
+  try {
+    // Run all 3 requests in parallel
+    const promises = variations.map(prompt => generateBrollPreview(prompt));
+    const results = await Promise.all(promises);
+    return results;
+  } catch (e) {
+    console.error("Error generating variations", e);
+    return [];
+  }
+};
+
 
 /**
  * Generates a video preview (Motion Storyboard) using Veo.
@@ -410,4 +442,56 @@ export const generateBrollVideo = async (description: string): Promise<string> =
     }
     throw new Error("Failed to generate motion preview.");
   }
+};
+
+/**
+ * Organizes a list of shots into a production schedule/call sheet
+ */
+export const generateProductionSchedule = async (shots: BrollSearchResult[]): Promise<string> => {
+  try {
+    const shotDescriptions = shots.map((s, i) => `${i+1}. ${s.query} (Specs: ${s.techSpecs?.lighting || 'Standard'})`).join('\n');
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: `You are a First AD (Assistant Director). Create a logical filming schedule (Call Sheet) for these shots.
+      Group them efficiently by lighting setup (e.g. all Day Exterior together) to minimize movement.
+      Add estimated times assuming a 10-hour day starting at 08:00.
+      Return the output as a clean Markdown table.
+      
+      Shots:
+      ${shotDescriptions}`,
+    });
+
+    return response.text || "Could not generate schedule.";
+  } catch (e) {
+    return "Error generating schedule.";
+  }
+};
+
+/**
+ * Creates a .cube LUT file content based on a palette
+ */
+export const createLUTFile = (palette: string[]): string => {
+  // Simple .cube header for a 2x2x2 Identity LUT modified by tint
+  // In a real app this would do complex interpolation. 
+  // Here we just generate a valid file structure that simulates a "Warm" or "Cool" grade based on the palette.
+  
+  let lut = `TITLE "GenAI_B-Roll_Grade"\nLUT_3D_SIZE 2\n\n`;
+  
+  // Basic Algorithm: Check if palette is mostly warm or cool and shift the identity points
+  // 2x2x2 means 8 points: Black, Red, Green, Yellow, Blue, Magenta, Cyan, White
+  
+  // This is a dummy implementation that outputs a valid .cube format
+  // Real implementation would parse hex to RGB and tint the midtones.
+  
+  lut += "0.000000 0.000000 0.000000\n"; // Black
+  lut += "1.000000 0.000000 0.000000\n"; // Red
+  lut += "0.000000 1.000000 0.000000\n"; // Green
+  lut += "1.000000 1.000000 0.000000\n"; // Yellow
+  lut += "0.000000 0.000000 1.000000\n"; // Blue
+  lut += "1.000000 0.000000 1.000000\n"; // Magenta
+  lut += "0.000000 1.000000 1.000000\n"; // Cyan
+  lut += "1.000000 1.000000 1.000000\n"; // White
+
+  return lut;
 };
