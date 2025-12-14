@@ -25,7 +25,7 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const handleSearch = async (query: string, mode: SearchMode) => {
+  const handleSearch = async (query: string, mode: SearchMode, referenceImage?: string) => {
     setIsLoading(true);
     setError(null);
     setSceneData(null); 
@@ -44,7 +44,7 @@ const App: React.FC = () => {
         setScriptData(segments);
         setResults([]);
       } else {
-        const result = await searchBrollResources(query);
+        const result = await searchBrollResources(query, referenceImage);
         setResults(prev => [result, ...prev]);
       }
     } catch (err) {

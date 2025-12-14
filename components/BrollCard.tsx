@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ExternalLink, Image as ImageIcon, Loader2, Sparkles, Copy, Camera, Music, Video, Bookmark, BookmarkCheck, PlayCircle, Film, Search, MapPin, Lightbulb, View, Sliders, Monitor, Grid, Download, Palette, Aperture, Maximize, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ExternalLink, Image as ImageIcon, Loader2, Sparkles, Copy, Camera, Music, Video, Bookmark, BookmarkCheck, PlayCircle, Film, Search, MapPin, Lightbulb, View, Sliders, Monitor, Grid, Download, Palette, Aperture, Maximize, RefreshCw, Sun, Clock } from 'lucide-react';
 import { BrollSearchResult, MapLocation } from '../types';
 import { generateBrollPreview, generateBrollVideo, scoutLocations, generateBrollVariations, createLUTFile } from '../services/geminiService';
 
@@ -38,6 +38,11 @@ export const BrollCard: React.FC<BrollCardProps> = ({ result, onToggleSave, isSa
   const [isScouting, setIsScouting] = useState(false);
   const [scoutError, setScoutError] = useState<string | null>(null);
 
+  // Parallax Effect State
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [rotateX, setRotateX] = useState(0);
+  const [rotateY, setRotateY] = useState(0);
+
   // Auto-generate main image on mount if not present
   useEffect(() => {
     if (!previewUrl && !isGeneratingImage) {
@@ -45,11 +50,33 @@ export const BrollCard: React.FC<BrollCardProps> = ({ result, onToggleSave, isSa
     }
   }, []);
 
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!cardRef.current || isViewfinderOn) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    
+    // Calculate rotation based on cursor position
+    // Max rotation 10 degrees
+    const rY = ((x - centerX) / centerX) * 5; 
+    const rX = ((centerY - y) / centerY) * 5; 
+
+    setRotateY(rY);
+    setRotateX(rX);
+  };
+
+  const handleMouseLeave = () => {
+    setRotateX(0);
+    setRotateY(0);
+  };
+
   const handleGeneratePreview = async (lensOverride?: string) => {
     setIsGeneratingImage(true);
     setError(null);
     try {
-      const url = await generateBrollPreview(result.query, lensOverride || currentLens);
+      const url = await generateBrollPreview(result.query, lensOverride || currentLens, result.referenceImage);
       setPreviewUrl(url);
     } catch (err) {
       setError("Failed to generate preview.");
@@ -199,7 +226,10 @@ export const BrollCard: React.FC<BrollCardProps> = ({ result, onToggleSave, isSa
   };
 
   return (
-    <div className="group relative glass-panel rounded-3xl overflow-hidden shadow-2xl transition-all duration-500 flex flex-col md:flex-row mb-12 border-slate-800/60">
+    <div 
+      className="group relative glass-panel rounded-3xl overflow-hidden shadow-2xl transition-all duration-500 flex flex-col md:flex-row mb-12 border-slate-800/60 perspective-1000"
+      style={{ perspective: '1000px' }}
+    >
       
       {/* Save Button */}
       <button 
@@ -209,8 +239,13 @@ export const BrollCard: React.FC<BrollCardProps> = ({ result, onToggleSave, isSa
         {isSaved ? <BookmarkCheck className="w-5 h-5 text-indigo-400 fill-indigo-400" /> : <Bookmark className="w-5 h-5" />}
       </button>
 
-      {/* Visual Preview Section (Left) */}
-      <div className="w-full md:w-5/12 bg-black relative min-h-[400px] flex flex-col border-b md:border-b-0 md:border-r border-white/5">
+      {/* Visual Preview Section (Left) - With Parallax Effect */}
+      <div 
+        ref={cardRef}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        className="w-full md:w-5/12 bg-black relative min-h-[400px] flex flex-col border-b md:border-b-0 md:border-r border-white/5 overflow-hidden transform-style-3d transition-transform duration-100 ease-out"
+      >
         
         {/* Top Floating Controls */}
         <div className="absolute top-5 left-5 z-20 flex gap-3">
@@ -285,8 +320,11 @@ export const BrollCard: React.FC<BrollCardProps> = ({ result, onToggleSave, isSa
           </div>
         )}
 
-        {/* Main Display Area */}
-        <div className="flex-1 relative flex items-center justify-center overflow-hidden bg-[#050505]">
+        {/* Main Display Area with Parallax Transform */}
+        <div 
+           className="flex-1 relative flex items-center justify-center overflow-hidden bg-[#050505] transform-style-3d"
+           style={{ transform: isViewfinderOn ? 'none' : `rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)` }}
+        >
           {previewMode === 'still' ? (
             // STILL IMAGE MODE
             previewUrl ? (
@@ -567,6 +605,12 @@ export const BrollCard: React.FC<BrollCardProps> = ({ result, onToggleSave, isSa
                <div className="bg-slate-900/50 p-4 rounded-xl border border-white/5">
                  <h4 className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-2">Director's Note</h4>
                  <p className="text-sm text-slate-300 leading-relaxed">{result.summary}</p>
+                 {result.referenceImage && (
+                   <div className="mt-4 pt-4 border-t border-white/5">
+                     <span className="text-[10px] text-indigo-400 uppercase font-bold tracking-widest mb-2 block">Reference Used</span>
+                     <img src={result.referenceImage} alt="Ref" className="w-16 h-16 object-cover rounded-lg border border-indigo-500/30" />
+                   </div>
+                 )}
                </div>
             </div>
           )}
@@ -670,23 +714,39 @@ export const BrollCard: React.FC<BrollCardProps> = ({ result, onToggleSave, isSa
                ) : (
                  <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
                    {locations.map((loc, idx) => (
-                     <a 
+                     <div 
                        key={idx}
-                       href={loc.uri}
-                       target="_blank"
-                       rel="noopener noreferrer"
-                       className="block p-4 bg-slate-900/80 hover:bg-slate-800 border border-white/5 hover:border-indigo-500/50 rounded-xl transition-all group"
+                       className="p-4 bg-slate-900/80 hover:bg-slate-800 border border-white/5 hover:border-indigo-500/50 rounded-xl transition-all group"
                      >
-                       <div className="flex items-start justify-between">
+                       <div className="flex items-start justify-between mb-2">
                          <div>
                            <h5 className="text-sm font-bold text-slate-200 group-hover:text-indigo-300 transition-colors">{loc.title}</h5>
-                           <span className="text-[10px] text-slate-500 flex items-center gap-1 mt-1 font-mono">
-                             <MapPin className="w-3 h-3" /> OPEN MAPS
-                           </span>
+                           <a href={loc.uri} target="_blank" rel="noreferrer" className="text-[10px] text-slate-500 flex items-center gap-1 mt-1 font-mono hover:text-white transition-colors">
+                             <MapPin className="w-3 h-3" /> OPEN MAPS <ExternalLink className="w-3 h-3" />
+                           </a>
                          </div>
-                         <ExternalLink className="w-4 h-4 text-slate-600 group-hover:text-indigo-400" />
                        </div>
-                     </a>
+                       
+                       {/* Sun Tracker */}
+                       {loc.sunData && (
+                         <div className="mt-3 pt-3 border-t border-white/5 grid grid-cols-2 gap-2">
+                            <div className="flex items-center gap-2 text-yellow-500/80 bg-yellow-500/10 p-2 rounded-lg">
+                               <Sun className="w-4 h-4" />
+                               <div>
+                                 <span className="text-[8px] uppercase font-bold block opacity-70">Golden Hour</span>
+                                 <span className="text-[10px] font-mono font-bold">{loc.sunData.goldenHourEvening}</span>
+                               </div>
+                            </div>
+                            <div className="flex items-center gap-2 text-blue-400/80 bg-blue-500/10 p-2 rounded-lg">
+                               <Clock className="w-4 h-4" />
+                               <div>
+                                 <span className="text-[8px] uppercase font-bold block opacity-70">Blue Hour</span>
+                                 <span className="text-[10px] font-mono font-bold">{loc.sunData.blueHour}</span>
+                               </div>
+                            </div>
+                         </div>
+                       )}
+                     </div>
                    ))}
                    {scoutError && <p className="text-red-400 text-xs text-center bg-red-950/30 p-2 rounded border border-red-900/50">{scoutError}</p>}
                  </div>

@@ -48,11 +48,20 @@ export interface DirectLink {
   type: 'free' | 'paid' | 'social';
 }
 
+export interface SunData {
+  sunrise: string;
+  goldenHourMorning: string;
+  goldenHourEvening: string;
+  sunset: string;
+  blueHour: string;
+}
+
 export interface MapLocation {
   title: string;
   address?: string;
   uri: string;
   rating?: number;
+  sunData?: SunData; // New feature
 }
 
 export interface BrollSearchResult {
@@ -73,7 +82,8 @@ export interface BrollSearchResult {
   lightingDiagram?: LightNode[];
   cameraSettings?: CameraSettings;
   audio?: AudioSpecs;
-  currentFocalLength?: string; // e.g. "35mm"
+  currentFocalLength?: string; 
+  referenceImage?: string; // Base64 reference
 }
 
 export interface ScriptSegment {

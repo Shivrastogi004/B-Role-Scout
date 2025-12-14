@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { Search, Loader2, Clapperboard, Video, FileText, Wand2, Sparkles } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Search, Loader2, Clapperboard, Video, FileText, Wand2, Sparkles, ImagePlus, X } from 'lucide-react';
 import { SearchMode } from '../types';
 import { enhancePrompt } from '../services/geminiService';
 
 interface SearchBarProps {
-  onSearch: (query: string, mode: SearchMode) => void;
+  onSearch: (query: string, mode: SearchMode, referenceImage?: string) => void;
   isLoading: boolean;
 }
 
@@ -12,11 +12,15 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isLoading }) => 
   const [value, setValue] = useState('');
   const [mode, setMode] = useState<SearchMode>(SearchMode.SINGLE);
   const [isEnhancing, setIsEnhancing] = useState(false);
+  
+  // Image Upload State
+  const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (value.trim()) {
-      onSearch(value.trim(), mode);
+      onSearch(value.trim(), mode, referenceImage || undefined);
     }
   };
 
@@ -31,6 +35,22 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isLoading }) => 
     } finally {
       setIsEnhancing(false);
     }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setReferenceImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const clearImage = () => {
+    setReferenceImage(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const getPlaceholder = () => {
@@ -75,7 +95,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isLoading }) => 
       </div>
       
       {/* Search Interface Container */}
-      <div className="glass-panel p-2 rounded-3xl shadow-2xl shadow-black/50">
+      <div className="glass-panel p-2 rounded-3xl shadow-2xl shadow-black/50 transition-all duration-300">
         
         {/* Mode Switcher */}
         <div className="flex p-1 mb-2 bg-black/20 rounded-2xl">
@@ -102,14 +122,32 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isLoading }) => 
         {/* Input Area */}
         <form onSubmit={handleSubmit} className="relative group">
           <div className="relative flex items-center">
-            <Search className={`absolute left-6 h-6 w-6 transition-colors duration-300 ${
-               mode === SearchMode.SINGLE ? 'text-indigo-400' : 
-               mode === SearchMode.SCENE ? 'text-purple-400' : 'text-pink-400'
-            }`} />
+            {/* Left Icon or Uploaded Image Preview */}
+            <div className="absolute left-6 z-10 flex items-center justify-center">
+              {referenceImage ? (
+                <div className="relative group/thumb">
+                  <div className="w-10 h-10 rounded-lg overflow-hidden border-2 border-indigo-500 shadow-lg">
+                    <img src={referenceImage} alt="Ref" className="w-full h-full object-cover" />
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={clearImage}
+                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover/thumb:opacity-100 transition-opacity"
+                  >
+                    <X className="w-2 h-2" />
+                  </button>
+                </div>
+              ) : (
+                <Search className={`h-6 w-6 transition-colors duration-300 ${
+                  mode === SearchMode.SINGLE ? 'text-indigo-400' : 
+                  mode === SearchMode.SCENE ? 'text-purple-400' : 'text-pink-400'
+                }`} />
+              )}
+            </div>
             
             {mode === SearchMode.SCRIPT ? (
               <textarea
-                className="w-full bg-slate-900/50 hover:bg-slate-900/70 focus:bg-slate-900 border border-transparent focus:border-white/10 transition-all py-5 pl-16 pr-36 text-lg text-white placeholder-slate-600 focus:outline-none rounded-2xl min-h-[100px] resize-none font-medium"
+                className="w-full bg-slate-900/50 hover:bg-slate-900/70 focus:bg-slate-900 border border-transparent focus:border-white/10 transition-all py-5 pl-20 pr-36 text-lg text-white placeholder-slate-600 focus:outline-none rounded-2xl min-h-[100px] resize-none font-medium"
                 placeholder={getPlaceholder()}
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
@@ -118,7 +156,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isLoading }) => 
             ) : (
               <input
                 type="text"
-                className="w-full bg-slate-900/50 hover:bg-slate-900/70 focus:bg-slate-900 border border-transparent focus:border-white/10 transition-all py-5 pl-16 pr-36 text-lg text-white placeholder-slate-600 focus:outline-none rounded-2xl font-medium h-16"
+                className="w-full bg-slate-900/50 hover:bg-slate-900/70 focus:bg-slate-900 border border-transparent focus:border-white/10 transition-all py-5 pl-20 pr-36 text-lg text-white placeholder-slate-600 focus:outline-none rounded-2xl font-medium h-16"
                 placeholder={getPlaceholder()}
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
@@ -126,7 +164,29 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isLoading }) => 
               />
             )}
 
-            <div className="absolute right-3 top-3 bottom-3 flex gap-2">
+            <div className="absolute right-3 top-3 bottom-3 flex gap-2 items-center">
+               
+               {/* Image Upload Trigger */}
+               {mode === SearchMode.SINGLE && (
+                 <>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef}
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all ${referenceImage ? 'text-indigo-300 bg-indigo-500/20' : 'text-slate-500 hover:text-white hover:bg-white/10'}`}
+                    title="Match Reference Image (Vibe Match)"
+                  >
+                    <ImagePlus className="w-5 h-5" />
+                  </button>
+                 </>
+               )}
+
                {mode === SearchMode.SINGLE && value.length > 5 && (
                  <button
                    type="button"
@@ -142,7 +202,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isLoading }) => 
               <button
                 type="submit"
                 disabled={isLoading || !value.trim()}
-                className={`px-6 rounded-xl font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white shadow-lg ${
+                className={`h-full px-6 rounded-xl font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white shadow-lg ${
                   mode === SearchMode.SINGLE ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 hover:to-indigo-400' : 
                   mode === SearchMode.SCENE ? 'bg-gradient-to-r from-purple-600 to-purple-500 hover:to-purple-400' : 'bg-gradient-to-r from-pink-600 to-pink-500 hover:to-pink-400'
                 }`}

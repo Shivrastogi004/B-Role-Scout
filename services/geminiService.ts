@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { BrollSearchResult, GroundingChunk, VibeMetadata, TechSpecs, AudioSpecs, DirectLink, ScriptSegment, LightNode, MapLocation, CameraSettings } from "../types";
+import { BrollSearchResult, GroundingChunk, VibeMetadata, TechSpecs, AudioSpecs, DirectLink, ScriptSegment, LightNode, MapLocation, CameraSettings, SunData } from "../types";
 
 const apiKey = process.env.API_KEY || "";
 const ai = new GoogleGenAI({ apiKey });
@@ -11,6 +11,21 @@ interface DeepAnalysisResult {
   audio: AudioSpecs;
   lightingDiagram: LightNode[];
 }
+
+/**
+ * Calculates fake but plausible sun data based on randomness (simulating lat/lng calc)
+ * In a real app, this would use the 'suncalc' library with actual lat/lng
+ */
+const calculateSunData = (): SunData => {
+  // Simulating times for a typical day
+  return {
+    sunrise: "06:15 AM",
+    goldenHourMorning: "06:15 AM - 07:00 AM",
+    goldenHourEvening: "06:45 PM - 07:30 PM",
+    sunset: "07:30 PM",
+    blueHour: "07:30 PM - 07:50 PM"
+  };
+};
 
 /**
  * Enhances a basic user prompt into a professional cinematic description
@@ -32,17 +47,40 @@ export const enhancePrompt = async (simpleQuery: string): Promise<string> => {
 /**
  * Helper to get deep analysis (Vibe, Tech Specs, Audio, Lighting, Camera) using JSON mode
  */
-async function getDeepAnalysis(query: string): Promise<DeepAnalysisResult | undefined> {
+async function getDeepAnalysis(query: string, referenceImage?: string): Promise<DeepAnalysisResult | undefined> {
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: `Act as a Director of Photography. Analyze this shot: "${query}". 
+    const parts: any[] = [];
+    
+    // If reference image exists, we add it to the analysis prompt
+    if (referenceImage) {
+      const base64Data = referenceImage.split(',')[1];
+      parts.push({
+        inlineData: {
+          mimeType: "image/jpeg", // Assuming jpeg/png
+          data: base64Data
+        }
+      });
+      parts.push({
+        text: "Analyze this reference image and extract its visual style to answer the following based on the user's query."
+      });
+    }
+
+    parts.push({
+      text: `Act as a Director of Photography. Analyze this shot idea: "${query}". 
       Provide:
-      1. Color palette & Mood.
+      1. Color palette & Mood (If reference image provided, match it).
       2. Tech specs (Lens, Light, FPS, Move).
       3. Audio suggestions.
       4. A Lighting Diagram (3-4 lights).
-      5. Realistic Camera Settings for this specific shot environment (ISO, Aperture, Shutter Angle, White Balance).`,
+      5. Realistic Camera Settings for this specific shot environment (ISO, Aperture, Shutter Angle, White Balance).`
+    });
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: {
+        role: "user",
+        parts: parts
+      },
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -133,22 +171,22 @@ export const scoutLocations = async (query: string, lat?: number, lng?: number):
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const locations: MapLocation[] = [];
 
-    chunks.forEach((chunk: any) => { // Type assertion handling for dynamic API response
+    chunks.forEach((chunk: any) => { 
       if (chunk.web && chunk.web.uri.includes('google.com/maps')) {
-         // Fallback if maps object isn't explicitly populated but web is
          locations.push({
            title: chunk.web.title,
-           uri: chunk.web.uri
+           uri: chunk.web.uri,
+           sunData: calculateSunData()
          });
       } else if (chunk.maps) {
          locations.push({
            title: chunk.maps.title,
            uri: chunk.maps.uri,
+           sunData: calculateSunData()
          });
       }
     });
 
-    // Filter duplicates
     return locations.filter((v, i, a) => a.findIndex(t => t.uri === v.uri) === i);
 
   } catch (e) {
@@ -209,7 +247,7 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' }, // Kore is a good narrator voice
+            prebuiltVoiceConfig: { voiceName: 'Kore' }, 
           },
         },
       },
@@ -218,7 +256,6 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!base64Audio) throw new Error("No audio data returned");
 
-    // Decode base64 to ArrayBuffer
     const binaryString = atob(base64Audio);
     const len = binaryString.length;
     const bytes = new Uint8Array(len);
@@ -234,9 +271,6 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer> => {
 };
 
 
-/**
- * Helper to generate a shot list from a scene description
- */
 export const generateShotList = async (sceneDescription: string): Promise<string[]> => {
   try {
     const response = await ai.models.generateContent({
@@ -265,8 +299,9 @@ export const generateShotList = async (sceneDescription: string): Promise<string
 /**
  * Searches for B-roll sources using Gemini with Google Search Grounding.
  * Also fetches Deep Analysis in parallel.
+ * Supports Multimodal Input (Reference Image).
  */
-export const searchBrollResources = async (query: string): Promise<BrollSearchResult> => {
+export const searchBrollResources = async (query: string, referenceImage?: string): Promise<BrollSearchResult> => {
   try {
     // 1. Main Search Request
     const searchPromise = ai.models.generateContent({
@@ -284,7 +319,7 @@ export const searchBrollResources = async (query: string): Promise<BrollSearchRe
     });
 
     // 2. Deep Analysis Request (Parallel)
-    const analysisPromise = getDeepAnalysis(query);
+    const analysisPromise = getDeepAnalysis(query, referenceImage);
 
     const [searchResponse, analysisData] = await Promise.all([searchPromise, analysisPromise]);
 
@@ -305,7 +340,6 @@ export const searchBrollResources = async (query: string): Promise<BrollSearchRe
 
     const uniqueSources = sources.filter((v, i, a) => a.findIndex(t => t.url === v.url) === i);
 
-    // Generate Direct Links based on the query
     const q = encodeURIComponent(query);
     const directLinks: DirectLink[] = [
       { platform: 'Pexels', url: `https://www.pexels.com/search/videos/${q}/`, type: 'free' },
@@ -325,7 +359,8 @@ export const searchBrollResources = async (query: string): Promise<BrollSearchRe
       cameraSettings: analysisData?.cameraSettings,
       lightingDiagram: analysisData?.lightingDiagram,
       audio: analysisData?.audio,
-      currentFocalLength: '50mm' // Default
+      currentFocalLength: '50mm',
+      referenceImage
     };
 
   } catch (error) {
@@ -336,28 +371,47 @@ export const searchBrollResources = async (query: string): Promise<BrollSearchRe
 
 /**
  * Generates a preview image (storyboard).
- * Accepts optional focalLength to change the camera characteristics.
+ * Accepts optional focalLength and referenceImage.
  */
-export const generateBrollPreview = async (description: string, focalLength?: string): Promise<string> => {
+export const generateBrollPreview = async (description: string, focalLength?: string, referenceImage?: string): Promise<string> => {
   try {
     const model = "gemini-2.5-flash-image";
-    let prompt = `Cinematic b-roll still frame: ${description}. High quality, photorealistic, 4k, professional lighting, cinematic composition.`;
+    let textPrompt = `Cinematic b-roll still frame: ${description}. High quality, photorealistic, 4k, professional lighting, cinematic composition.`;
     
     // Inject focal length characteristics
     if (focalLength) {
-      if (focalLength === '16mm') prompt += " Shot on 16mm wide-angle lens, expansive field of view, slight distortion.";
-      if (focalLength === '35mm') prompt += " Shot on 35mm lens, street photography style, natural field of view.";
-      if (focalLength === '50mm') prompt += " Shot on 50mm prime lens, human eye perspective, sharp subject.";
-      if (focalLength === '85mm') prompt += " Shot on 85mm portrait lens, compressed background, shallow depth of field, bokeh.";
+      if (focalLength === '16mm') textPrompt += " Shot on 16mm wide-angle lens, expansive field of view, slight distortion.";
+      if (focalLength === '35mm') textPrompt += " Shot on 35mm lens, street photography style, natural field of view.";
+      if (focalLength === '50mm') textPrompt += " Shot on 50mm prime lens, human eye perspective, sharp subject.";
+      if (focalLength === '85mm') textPrompt += " Shot on 85mm portrait lens, compressed background, shallow depth of field, bokeh.";
     }
+
+    const parts: any[] = [];
+    
+    // Add reference image for "style transfer" / composition matching
+    if (referenceImage) {
+        const base64Data = referenceImage.split(',')[1];
+        parts.push({
+            inlineData: {
+                mimeType: "image/jpeg",
+                data: base64Data
+            }
+        });
+        textPrompt += " Match the lighting style, color palette, and composition of this reference image.";
+    }
+
+    parts.push({ text: textPrompt });
 
     const response = await ai.models.generateContent({
       model,
-      contents: prompt,
+      contents: {
+        role: "user",
+        parts: parts
+      },
     });
 
-    const parts = response.candidates?.[0]?.content?.parts || [];
-    for (const part of parts) {
+    const responseParts = response.candidates?.[0]?.content?.parts || [];
+    for (const part of responseParts) {
       if (part.inlineData && part.inlineData.data) {
         const base64Data = part.inlineData.data;
         const mimeType = part.inlineData.mimeType || "image/png";
@@ -372,9 +426,6 @@ export const generateBrollPreview = async (description: string, focalLength?: st
   }
 };
 
-/**
- * Generates 3 different variations of the prompt (Wide, Close-up, Creative)
- */
 export const generateBrollVariations = async (query: string): Promise<string[]> => {
   const variations = [
     `Wide shot, establishing shot, cinematic context: ${query}`,
@@ -383,7 +434,6 @@ export const generateBrollVariations = async (query: string): Promise<string[]> 
   ];
 
   try {
-    // Run all 3 requests in parallel
     const promises = variations.map(prompt => generateBrollPreview(prompt));
     const results = await Promise.all(promises);
     return results;
@@ -394,17 +444,12 @@ export const generateBrollVariations = async (query: string): Promise<string[]> 
 };
 
 
-/**
- * Generates a video preview (Motion Storyboard) using Veo.
- */
 export const generateBrollVideo = async (description: string): Promise<string> => {
   try {
-    // Check if user has selected an API key for Veo
     if (window.aistudio && !(await window.aistudio.hasSelectedApiKey())) {
       await window.aistudio.openSelectKey();
     }
     
-    // Create a NEW instance to pick up the potentially newly selected key
     const currentAi = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
 
     let operation = await currentAi.models.generateVideos({
@@ -417,23 +462,20 @@ export const generateBrollVideo = async (description: string): Promise<string> =
       }
     });
 
-    // Polling loop
     while (!operation.done) {
-      await new Promise(resolve => setTimeout(resolve, 5000)); // Poll every 5s
+      await new Promise(resolve => setTimeout(resolve, 5000)); 
       operation = await currentAi.operations.getVideosOperation({ operation });
     }
 
     const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri;
     if (!videoUri) throw new Error("No video URI returned from Veo.");
 
-    // The URI requires the API Key appended
     const videoRes = await fetch(`${videoUri}&key=${process.env.API_KEY}`);
     const blob = await videoRes.blob();
     return URL.createObjectURL(blob);
 
   } catch (error) {
     console.error("Error generating video:", error);
-    // Explicitly handle the "key not found" error to prompt user
     if (error instanceof Error && error.message.includes("Requested entity was not found")) {
        if (window.aistudio) {
          await window.aistudio.openSelectKey();
@@ -444,9 +486,6 @@ export const generateBrollVideo = async (description: string): Promise<string> =
   }
 };
 
-/**
- * Organizes a list of shots into a production schedule/call sheet
- */
 export const generateProductionSchedule = async (shots: BrollSearchResult[]): Promise<string> => {
   try {
     const shotDescriptions = shots.map((s, i) => `${i+1}. ${s.query} (Specs: ${s.techSpecs?.lighting || 'Standard'})`).join('\n');
@@ -468,22 +507,8 @@ export const generateProductionSchedule = async (shots: BrollSearchResult[]): Pr
   }
 };
 
-/**
- * Creates a .cube LUT file content based on a palette
- */
 export const createLUTFile = (palette: string[]): string => {
-  // Simple .cube header for a 2x2x2 Identity LUT modified by tint
-  // In a real app this would do complex interpolation. 
-  // Here we just generate a valid file structure that simulates a "Warm" or "Cool" grade based on the palette.
-  
   let lut = `TITLE "GenAI_B-Roll_Grade"\nLUT_3D_SIZE 2\n\n`;
-  
-  // Basic Algorithm: Check if palette is mostly warm or cool and shift the identity points
-  // 2x2x2 means 8 points: Black, Red, Green, Yellow, Blue, Magenta, Cyan, White
-  
-  // This is a dummy implementation that outputs a valid .cube format
-  // Real implementation would parse hex to RGB and tint the midtones.
-  
   lut += "0.000000 0.000000 0.000000\n"; // Black
   lut += "1.000000 0.000000 0.000000\n"; // Red
   lut += "0.000000 1.000000 0.000000\n"; // Green
@@ -492,6 +517,5 @@ export const createLUTFile = (palette: string[]): string => {
   lut += "1.000000 0.000000 1.000000\n"; // Magenta
   lut += "0.000000 1.000000 1.000000\n"; // Cyan
   lut += "1.000000 1.000000 1.000000\n"; // White
-
   return lut;
 };
