@@ -1,12 +1,13 @@
 import React from 'react';
-import { Film, Layers, Zap } from 'lucide-react';
+import { Film, Layers, Zap, HelpCircle } from 'lucide-react';
 
 interface HeaderProps {
   savedCount: number;
   onToggleSidebar: () => void;
+  onOpenInfo: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ savedCount, onToggleSidebar }) => {
+export const Header: React.FC<HeaderProps> = ({ savedCount, onToggleSidebar, onOpenInfo }) => {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-white/5 bg-[#020617]/80 backdrop-blur-xl supports-[backdrop-filter]:bg-[#020617]/60">
       <div className="container flex h-16 items-center justify-between mx-auto px-6">
@@ -31,6 +32,14 @@ export const Header: React.FC<HeaderProps> = ({ savedCount, onToggleSidebar }) =
             <Zap className="w-3 h-3" />
             <span>Gen 2.5 Active</span>
           </div>
+          
+          <button 
+            onClick={onOpenInfo}
+            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+            title="About & Help"
+          >
+             <HelpCircle className="w-5 h-5" />
+          </button>
 
           <button 
             onClick={onToggleSidebar}

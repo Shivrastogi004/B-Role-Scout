@@ -5,6 +5,7 @@ import { BrollCard } from './components/BrollCard';
 import { ShotGenerator } from './components/ShotGenerator';
 import { CollectionSidebar } from './components/CollectionSidebar';
 import { ScriptAnalyzer } from './components/ScriptAnalyzer';
+import { InfoModal } from './components/InfoModal';
 import { BrollSearchResult, SearchMode, ScriptSegment } from './types';
 import { searchBrollResources, generateShotList, analyzeScript } from './services/geminiService';
 import { AlertCircle } from 'lucide-react';
@@ -24,6 +25,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
 
   const handleSearch = async (query: string, mode: SearchMode, referenceImage?: string) => {
     setIsLoading(true);
@@ -87,7 +89,10 @@ const App: React.FC = () => {
       <Header 
         savedCount={savedShots.length} 
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
+        onOpenInfo={() => setIsInfoOpen(true)}
       />
+      
+      <InfoModal isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} />
       
       <CollectionSidebar 
         isOpen={isSidebarOpen} 
