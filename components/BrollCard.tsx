@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ExternalLink, Image as ImageIcon, Loader2, Sparkles, Copy, Camera, Music, Video, Bookmark, BookmarkCheck, PlayCircle, Film, Search, MapPin, Lightbulb, View, Sliders, Monitor, Grid, Download, Palette, Aperture, Maximize, RefreshCw, Sun, Clock } from 'lucide-react';
+import { ExternalLink, Image as ImageIcon, Loader2, Sparkles, Copy, Camera, Music, Video, Bookmark, BookmarkCheck, PlayCircle, Film, Search, MapPin, Lightbulb, View, Sliders, Monitor, Grid, Download, Palette, Aperture, Maximize, RefreshCw, Sun, Clock, MousePointerClick } from 'lucide-react';
 import { BrollSearchResult, MapLocation } from '../types';
 import { generateBrollPreview, generateBrollVideo, scoutLocations, generateBrollVariations, createLUTFile } from '../services/geminiService';
 
@@ -9,7 +9,7 @@ interface BrollCardProps {
   isSaved: boolean;
 }
 
-type TabType = 'gallery' | 'tech' | 'color' | 'locations';
+type TabType = 'footage' | 'tech' | 'color' | 'locations';
 type PreviewMode = 'still' | 'motion';
 type AspectRatio = 'cinema' | 'wide' | 'social';
 type ColorFilter = 'none' | 'teal-orange' | 'noir' | 'vintage';
@@ -24,7 +24,7 @@ export const BrollCard: React.FC<BrollCardProps> = ({ result, onToggleSave, isSa
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>('gallery');
+  const [activeTab, setActiveTab] = useState<TabType>('footage');
   const [previewMode, setPreviewMode] = useState<PreviewMode>('still');
 
   // Viewfinder State
@@ -281,8 +281,7 @@ export const BrollCard: React.FC<BrollCardProps> = ({ result, onToggleSave, isSa
         {isViewfinderOn && previewMode === 'still' && previewUrl && (
           <div className="absolute bottom-20 left-0 right-0 z-30 flex justify-center pointer-events-none animate-in slide-in-from-bottom-4 fade-in duration-300">
              <div className="bg-black/90 backdrop-blur-xl px-5 py-3 rounded-2xl border border-white/10 flex gap-6 pointer-events-auto shadow-2xl">
-               
-               {/* LENS SWITCHER (Complex Feature) */}
+               {/* LENS SWITCHER */}
                <div className="flex flex-col gap-1 border-r border-white/10 pr-6">
                   <span className="text-[9px] text-slate-500 uppercase font-mono tracking-widest">Lens Kit</span>
                   <div className="flex gap-1">
@@ -329,7 +328,7 @@ export const BrollCard: React.FC<BrollCardProps> = ({ result, onToggleSave, isSa
             // STILL IMAGE MODE
             previewUrl ? (
               <div className="relative w-full h-full group/image flex items-center justify-center">
-                {/* Image Container with potential Viewfinder Masks */}
+                {/* Image Container */}
                 <div 
                   className={`relative w-full h-full transition-all duration-500 overflow-hidden ${isViewfinderOn ? 'scale-90' : ''}`}
                 >
@@ -351,77 +350,21 @@ export const BrollCard: React.FC<BrollCardProps> = ({ result, onToggleSave, isSa
 
                   {/* Viewfinder Overlay Elements */}
                   {isViewfinderOn && (
-                     <>
-                        {/* Aspect Ratio Masks */}
-                        {aspectRatio === 'cinema' && (
-                          <>
-                            <div className="absolute top-0 left-0 right-0 h-[12%] bg-black z-10 transition-all duration-300"></div>
-                            <div className="absolute bottom-0 left-0 right-0 h-[12%] bg-black z-10 transition-all duration-300"></div>
-                          </>
-                        )}
-                        {aspectRatio === 'social' && (
-                          <>
-                            <div className="absolute top-0 left-0 bottom-0 w-[35%] bg-black/90 z-10 backdrop-blur-sm transition-all duration-300"></div>
-                            <div className="absolute top-0 right-0 bottom-0 w-[35%] bg-black/90 z-10 backdrop-blur-sm transition-all duration-300"></div>
-                          </>
-                        )}
-
-                        {/* Camera UI Overlay (JetBrains Mono) */}
-                        <div className="absolute inset-0 z-20 pointer-events-none p-6 font-mono opacity-90">
-                           {/* Top Left: REC dot and Status */}
+                     <div className="absolute inset-0 z-20 pointer-events-none p-6 font-mono opacity-90">
+                           {/* REC dot */}
                            <div className="absolute top-8 left-8 flex items-center gap-3">
                               <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.8)]"></div>
                               <span className="text-red-500 text-sm font-bold tracking-widest">REC</span>
                               <span className="text-white text-xs ml-2">TC 00:00:04:12</span>
                            </div>
-
-                           {/* Top Right: Battery/Card */}
-                           <div className="absolute top-8 right-8 flex flex-col items-end gap-1">
-                              <span className="text-green-400 text-[10px] tracking-wider">BAT 14.4V</span>
-                              <span className="text-white text-[10px] tracking-wider">A001_C004_RAW</span>
-                           </div>
-
-                           {/* Center Crosshair */}
+                           {/* Crosshair */}
                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-50">
                               <div className="w-6 h-px bg-white"></div>
                               <div className="h-6 w-px bg-white -mt-3 ml-3"></div>
                            </div>
-
-                           {/* Bottom Telemetry Data (Smart AI Data) */}
-                           <div className="absolute bottom-8 left-8 right-8 flex justify-between items-end text-white text-xs">
-                              <div className="flex gap-6">
-                                 <div>
-                                    <span className="block text-[8px] text-slate-400 mb-0.5">ISO</span>
-                                    <span className="text-base font-bold">{result.cameraSettings?.iso || '800'}</span>
-                                 </div>
-                                 <div>
-                                    <span className="block text-[8px] text-slate-400 mb-0.5">SHUTTER</span>
-                                    <span className="text-base font-bold">{result.cameraSettings?.shutter || '180°'}</span>
-                                 </div>
-                                 <div>
-                                    <span className="block text-[8px] text-slate-400 mb-0.5">IRIS</span>
-                                    <span className="text-base font-bold">{result.cameraSettings?.aperture || 'T2.8'}</span>
-                                 </div>
-                                 <div>
-                                    <span className="block text-[8px] text-slate-400 mb-0.5">WB</span>
-                                    <span className="text-base font-bold">{result.cameraSettings?.wb || '5600K'}</span>
-                                 </div>
-                              </div>
-                              
-                              <div className="text-right">
-                                 <span className="block text-[8px] text-slate-400 mb-0.5">FOCAL LENGTH</span>
-                                 <span className="text-xl font-bold text-yellow-400">{currentLens}</span>
-                              </div>
-                           </div>
-                           
                            {/* Frame Guides */}
                            <div className="absolute inset-10 border border-white/20"></div>
-                           <div className="absolute top-10 left-10 w-4 h-4 border-t-2 border-l-2 border-white/50"></div>
-                           <div className="absolute top-10 right-10 w-4 h-4 border-t-2 border-r-2 border-white/50"></div>
-                           <div className="absolute bottom-10 left-10 w-4 h-4 border-b-2 border-l-2 border-white/50"></div>
-                           <div className="absolute bottom-10 right-10 w-4 h-4 border-b-2 border-r-2 border-white/50"></div>
-                        </div>
-                     </>
+                     </div>
                   )}
                 </div>
 
@@ -442,11 +385,7 @@ export const BrollCard: React.FC<BrollCardProps> = ({ result, onToggleSave, isSa
                    </div>
                  ) : (
                    <div className="flex flex-col items-center group/btn">
-                     <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-6 group-hover/btn:border-indigo-500/50 group-hover/btn:shadow-[0_0_30px_rgba(99,102,241,0.3)] transition-all duration-300">
-                        <Monitor className="w-8 h-8 text-slate-600 group-hover/btn:text-indigo-400 transition-colors" />
-                     </div>
-                     <h3 className="text-white font-bold text-lg mb-2">Visual Storyboard</h3>
-                     <p className="text-slate-500 text-sm mb-6 max-w-[200px]">Generate a photorealistic preview of this shot.</p>
+                     <Monitor className="w-16 h-16 text-slate-800 mb-6" />
                      <button
                        onClick={() => handleGeneratePreview()}
                        className="bg-white text-black hover:bg-indigo-50 px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center shadow-xl hover:scale-105 active:scale-95"
@@ -462,36 +401,17 @@ export const BrollCard: React.FC<BrollCardProps> = ({ result, onToggleSave, isSa
             // MOTION VIDEO MODE
             videoUrl ? (
               <div className="relative w-full h-full bg-black">
-                <video 
-                  src={videoUrl} 
-                  controls 
-                  loop 
-                  autoPlay 
-                  muted
-                  className="w-full h-full object-contain"
-                />
-                <div className="absolute bottom-16 left-4 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 text-[10px] text-white font-medium flex items-center pointer-events-none">
-                   <Film className="w-3 h-3 mr-2 text-pink-500" /> Veo Motion Preview
-                </div>
+                <video src={videoUrl} controls loop autoPlay muted className="w-full h-full object-contain" />
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center p-8 text-center w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-900 to-black">
                  {isGeneratingVideo ? (
                    <div className="flex flex-col items-center">
-                     <div className="relative w-16 h-16 mb-6">
-                        <div className="absolute inset-0 border-t-2 border-pink-500 rounded-full animate-spin"></div>
-                        <div className="absolute inset-2 border-r-2 border-purple-500 rounded-full animate-spin reverse"></div>
-                     </div>
+                     <Loader2 className="w-12 h-12 text-pink-500 animate-spin mb-4" />
                      <p className="text-pink-200 font-medium tracking-widest text-sm animate-pulse">GENERATING MOTION...</p>
-                     <p className="text-slate-500 text-[10px] mt-2 max-w-[200px]">Powered by Veo. This may take a minute.</p>
                    </div>
                  ) : (
                    <div className="flex flex-col items-center group/btn">
-                     <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-6 group-hover/btn:border-pink-500/50 group-hover/btn:shadow-[0_0_30px_rgba(236,72,153,0.3)] transition-all duration-300">
-                        <PlayCircle className="w-8 h-8 text-slate-600 group-hover/btn:text-pink-400 transition-colors" />
-                     </div>
-                     <h3 className="text-white font-bold text-lg mb-2">Motion Preview</h3>
-                     <p className="text-slate-500 text-sm mb-6 max-w-[200px]">Simulate camera movement and action.</p>
                      <button
                        onClick={handleGenerateVideo}
                        className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center shadow-lg hover:shadow-purple-500/25 hover:scale-105 active:scale-95"
@@ -499,11 +419,6 @@ export const BrollCard: React.FC<BrollCardProps> = ({ result, onToggleSave, isSa
                        <Film className="w-4 h-4 mr-2" />
                        Generate Video
                      </button>
-                     {error && (
-                        <p className="text-red-400 text-xs mt-4 max-w-[220px] bg-red-950/50 p-2 rounded border border-red-900/50">
-                          {error}
-                        </p>
-                      )}
                    </div>
                  )}
               </div>
@@ -536,9 +451,9 @@ export const BrollCard: React.FC<BrollCardProps> = ({ result, onToggleSave, isSa
         {/* Sleek Tabs Navigation */}
         <div className="flex items-center px-8 border-b border-white/5 overflow-x-auto hide-scrollbar gap-8">
           {[
-            { id: 'gallery', icon: Grid, label: 'Gallery' },
-            { id: 'color', icon: Palette, label: 'Color Lab' },
+            { id: 'footage', icon: Video, label: 'Found Footage' },
             { id: 'tech', icon: Aperture, label: 'Specs' },
+            { id: 'color', icon: Palette, label: 'Color Lab' },
             { id: 'locations', icon: MapPin, label: 'Locations' },
           ].map(tab => (
             <button 
@@ -560,59 +475,71 @@ export const BrollCard: React.FC<BrollCardProps> = ({ result, onToggleSave, isSa
         {/* Tab Content Area */}
         <div className="flex-1 p-8 bg-black/20 overflow-y-auto custom-scrollbar h-[350px]">
           
-          {/* TAB: GALLERY */}
-          {activeTab === 'gallery' && (
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-               <div className="mb-4 flex items-center justify-between">
-                 <h4 className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Variations</h4>
-                 {variations.length === 0 && !isGeneratingVariations && (
-                   <button 
-                     onClick={handleGenerateVariations}
-                     className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 bg-indigo-500/10 px-2 py-1 rounded hover:bg-indigo-500/20 transition-colors"
-                   >
-                     <RefreshCw className="w-3 h-3" /> GENERATE ANGLES
-                   </button>
-                 )}
+          {/* TAB: FOOTAGE (VISUAL SEARCH) */}
+          {activeTab === 'footage' && (
+             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+               <div className="mb-4">
+                 <h4 className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Found Visuals</h4>
+                 <p className="text-xs text-slate-400">External stock sources matched to your query.</p>
                </div>
 
-               <div className="grid grid-cols-3 gap-3 mb-8">
-                 {variations.length > 0 ? (
-                   variations.map((vUrl, i) => (
-                     <button 
-                       key={i} 
-                       onClick={() => { setPreviewUrl(vUrl); setPreviewMode('still'); }}
-                       className="aspect-video rounded-lg overflow-hidden border border-white/10 hover:border-indigo-500 hover:shadow-[0_0_15px_rgba(99,102,241,0.3)] transition-all group relative"
+               {result.foundClips ? (
+                 <div className="grid grid-cols-2 gap-4">
+                   {result.foundClips.map((clip) => (
+                     <a 
+                       key={clip.id} 
+                       href={clip.url}
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       className="group/clip relative aspect-video rounded-xl overflow-hidden border border-white/10 hover:border-indigo-500 transition-all shadow-lg block"
                      >
-                       <img src={vUrl} className="w-full h-full object-cover" alt="Variation" />
-                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
-                         <Maximize className="w-4 h-4 text-white" />
+                       {/* AI Generated Thumbnail representing the link content */}
+                       <img src={clip.thumbnail} alt={clip.title} className="w-full h-full object-cover transition-transform duration-700 group-hover/clip:scale-110" />
+                       
+                       {/* Overlay */}
+                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-3">
+                         <div className="flex justify-between items-end">
+                            <div>
+                               <span className="text-[9px] font-bold text-indigo-300 uppercase tracking-widest bg-indigo-900/40 px-1.5 py-0.5 rounded border border-indigo-500/30 mb-1 inline-block">{clip.domain}</span>
+                               <p className="text-xs font-bold text-white line-clamp-1">{clip.title}</p>
+                            </div>
+                            <ExternalLink className="w-3 h-3 text-white/70" />
+                         </div>
                        </div>
-                     </button>
-                   ))
-                 ) : (
-                   [1, 2, 3].map((_, i) => (
-                      <div key={i} className="aspect-video rounded-lg bg-white/5 border border-white/5 flex items-center justify-center">
-                        {isGeneratingVariations ? (
-                          <Loader2 className="w-4 h-4 animate-spin text-slate-600" />
-                        ) : (
-                          <span className="text-[10px] text-slate-600 font-mono">ANGLE {i+1}</span>
-                        )}
-                      </div>
-                   ))
-                 )}
-               </div>
 
-               <div className="bg-slate-900/50 p-4 rounded-xl border border-white/5">
-                 <h4 className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-2">Director's Note</h4>
-                 <p className="text-sm text-slate-300 leading-relaxed">{result.summary}</p>
-                 {result.referenceImage && (
-                   <div className="mt-4 pt-4 border-t border-white/5">
-                     <span className="text-[10px] text-indigo-400 uppercase font-bold tracking-widest mb-2 block">Reference Used</span>
-                     <img src={result.referenceImage} alt="Ref" className="w-16 h-16 object-cover rounded-lg border border-indigo-500/30" />
-                   </div>
-                 )}
+                       {/* Hover Action */}
+                       <div className="absolute inset-0 bg-indigo-500/20 opacity-0 group-hover/clip:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[1px]">
+                          <span className="px-3 py-1.5 bg-black/80 rounded-full text-[10px] text-white font-bold flex items-center gap-1 border border-white/20">
+                             <MousePointerClick className="w-3 h-3" /> OPEN LINK
+                          </span>
+                       </div>
+                     </a>
+                   ))}
+                 </div>
+               ) : (
+                 <div className="flex flex-col items-center justify-center py-10 opacity-50">
+                   <Search className="w-8 h-8 mb-2" />
+                   <span className="text-xs">No visual sources found.</span>
+                 </div>
+               )}
+
+               <div className="mt-6 pt-6 border-t border-white/5">
+                 <h4 className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-3">Quick Search Links</h4>
+                 <div className="flex flex-wrap gap-2">
+                   {result.directLinks?.map((link, i) => (
+                     <a 
+                       key={i} 
+                       href={link.url} 
+                       target="_blank" 
+                       rel="noreferrer"
+                       className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700 hover:border-slate-600 transition-colors"
+                     >
+                       {link.platform}
+                     </a>
+                   ))}
+                 </div>
                </div>
-            </div>
+             </div>
           )}
 
           {/* TAB: COLOR LAB */}
@@ -754,7 +681,7 @@ export const BrollCard: React.FC<BrollCardProps> = ({ result, onToggleSave, isSa
             </div>
           )}
 
-          {(!result.techSpecs && activeTab !== 'gallery' && activeTab !== 'locations') && (
+          {(!result.techSpecs && activeTab !== 'footage' && activeTab !== 'locations') && (
             <div className="flex items-center justify-center h-full text-slate-500 text-sm font-mono">
               <Loader2 className="w-4 h-4 mr-2 animate-spin" /> ANALYZING SPECS...
             </div>

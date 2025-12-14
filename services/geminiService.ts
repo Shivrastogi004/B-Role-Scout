@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { BrollSearchResult, GroundingChunk, VibeMetadata, TechSpecs, AudioSpecs, DirectLink, ScriptSegment, LightNode, MapLocation, CameraSettings, SunData } from "../types";
+import { BrollSearchResult, GroundingChunk, VibeMetadata, TechSpecs, AudioSpecs, DirectLink, ScriptSegment, LightNode, MapLocation, CameraSettings, SunData, FoundClip } from "../types";
 
 const apiKey = process.env.API_KEY || "";
 const ai = new GoogleGenAI({ apiKey });
@@ -297,9 +297,7 @@ export const generateShotList = async (sceneDescription: string): Promise<string
 };
 
 /**
- * Searches for B-roll sources using Gemini with Google Search Grounding.
- * Also fetches Deep Analysis in parallel.
- * Supports Multimodal Input (Reference Image).
+ * Searches for B-roll sources and generates visual thumbnails for them.
  */
 export const searchBrollResources = async (query: string, referenceImage?: string): Promise<BrollSearchResult> => {
   try {
@@ -321,7 +319,10 @@ export const searchBrollResources = async (query: string, referenceImage?: strin
     // 2. Deep Analysis Request (Parallel)
     const analysisPromise = getDeepAnalysis(query, referenceImage);
 
-    const [searchResponse, analysisData] = await Promise.all([searchPromise, analysisPromise]);
+    // 3. Generate Visual Thumbnails (Parallel) - Create 4 distinct thumbnails to use for results
+    const thumbnailsPromise = generateBrollVariations(query);
+
+    const [searchResponse, analysisData, thumbnails] = await Promise.all([searchPromise, analysisPromise, thumbnailsPromise]);
 
     const summary = searchResponse.text || "No summary available.";
     
@@ -340,6 +341,20 @@ export const searchBrollResources = async (query: string, referenceImage?: strin
 
     const uniqueSources = sources.filter((v, i, a) => a.findIndex(t => t.url === v.url) === i);
 
+    // Create "Found Clips" by merging sources with generated thumbnails
+    // This simulates "scraping" the image by providing a high-quality visual representation of what the link contains
+    const foundClips: FoundClip[] = uniqueSources.slice(0, 4).map((source, index) => {
+      const urlObj = new URL(source.url);
+      return {
+        id: crypto.randomUUID(),
+        title: source.title.replace(/ \| .*$/, '').replace(/ - .*$/, '').substring(0, 40),
+        url: source.url,
+        domain: urlObj.hostname.replace('www.', ''),
+        // Cycle through thumbnails if we have more sources than generated images
+        thumbnail: thumbnails[index % thumbnails.length] || thumbnails[0] 
+      };
+    });
+
     const q = encodeURIComponent(query);
     const directLinks: DirectLink[] = [
       { platform: 'Pexels', url: `https://www.pexels.com/search/videos/${q}/`, type: 'free' },
@@ -353,6 +368,7 @@ export const searchBrollResources = async (query: string, referenceImage?: strin
       query,
       summary,
       sources: uniqueSources,
+      foundClips: foundClips.length > 0 ? foundClips : undefined,
       directLinks,
       vibe: analysisData?.vibe,
       techSpecs: analysisData?.techSpecs,
@@ -360,7 +376,9 @@ export const searchBrollResources = async (query: string, referenceImage?: strin
       lightingDiagram: analysisData?.lightingDiagram,
       audio: analysisData?.audio,
       currentFocalLength: '50mm',
-      referenceImage
+      referenceImage,
+      // Use the first thumbnail as the main preview if available, otherwise generate one later
+      generatedPreviewUrl: thumbnails[0]
     };
 
   } catch (error) {
@@ -428,9 +446,10 @@ export const generateBrollPreview = async (description: string, focalLength?: st
 
 export const generateBrollVariations = async (query: string): Promise<string[]> => {
   const variations = [
-    `Wide shot, establishing shot, cinematic context: ${query}`,
-    `Extreme close-up macro detail, texture focus: ${query}`,
-    `Creative low angle or overhead shot, dynamic lighting: ${query}`
+    `Cinematic shot: ${query}`,
+    `Close-up detail: ${query}`,
+    `Wide establishing shot: ${query}`,
+    `Artistic angle: ${query}`
   ];
 
   try {

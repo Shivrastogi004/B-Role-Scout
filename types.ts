@@ -61,7 +61,15 @@ export interface MapLocation {
   address?: string;
   uri: string;
   rating?: number;
-  sunData?: SunData; // New feature
+  sunData?: SunData; 
+}
+
+export interface FoundClip {
+  id: string;
+  title: string;
+  url: string;
+  domain: string;
+  thumbnail: string; // AI generated visual representation
 }
 
 export interface BrollSearchResult {
@@ -72,6 +80,7 @@ export interface BrollSearchResult {
     title: string;
     url: string;
   }[];
+  foundClips?: FoundClip[]; // New visual clip array
   directLinks?: DirectLink[];
   generatedPreviewUrl?: string;
   generatedVideoUrl?: string;
